@@ -1,51 +1,76 @@
 use std::{iter::{self}};
-use peeking_take_while::PeekableExt;
+use itertools::Itertools;
 
 pub fn lex(code: &str) -> Result<Vec<Token>, String>{
     let iter = code.chars();
-    let iter = &mut iter.peekable();
+    let iter = &mut iter.multipeek();
 
     let mut tokens = Vec::<Token>::new();
-    while let Some(char) = iter.next(){
+    while let Some(mut char) = iter.next(){
 
         const WHITESPACE_START: char = 0u8 as char;
-        const WHITESPACE_END: char = 31u8 as char;
+        const WHITESPACE_END: char = 32u8 as char;
+
+        let is_negative_number = if matches!(char, '-') && iter.peek().is_some_and(|c| matches!(c, '0'..='9')){
+            char = iter.next().unwrap();
+            true
+        }else{
+            false
+        };
+        iter.reset_peek();
+
         let token = match char{
             WHITESPACE_START..=WHITESPACE_END => { continue; },
             '(' => Token::OpeningParenthesis,
             ')' => Token::ClosingParenthesis,
             '{' => Token::OpeningCurlyBrace,
             '}' => Token::ClosingCurlyBrace,
+            '+' => Token::Plus,
+            '-' => Token::Minus,
+            '*' => Token::Asterisk,
+            '/' => Token::Slash,
             ';' => Token::Semicolon,
             '.' => Token::Dot,
             c @ '0'..='9' => {
                 let mut value: f64 = 0.0;
-                for c in iter::once(c).chain(iter.by_ref().peeking_take_while(|c| matches!(c, '0'..='9' ))){
+                for c in iter::once(c).chain(iter.peeking_take_while(|c| matches!(c, '0'..='9'))){
                     let digit = c as u8 - 48u8;
                     println!("Adding digit: {digit}");
                     value = value * 10.0 + digit as f64;
                 }
-                println!("val: {value}");
+                println!("Dot");
+                iter.reset_peek();
                 if matches!(iter.peek(), Some('.')){
                     iter.next(); // skip the dot
                     // Add digits after point
                     let mut digits_after_point = 0;
-                    for c in iter.by_ref().peeking_take_while(|c| matches!(c, '0'..='9' )){
+                    for c in iter.peeking_take_while(|c| matches!(c, '0'..='9' )){
                         let digit = c as u8 - 48u8;
+                        println!("Adding digit: {digit}");
                         value = value * 10.0 + digit as f64;
                         digits_after_point += 1;
                     }
                     value /= 10_i32.pow(digits_after_point) as f64;
+                    Token::FloatLiteral(value as f32 * (if is_negative_number{-1.0} else {1.0} ))
+                }else{
+                    Token::IntLiteral(value as i32 * (if is_negative_number{-1} else {1}))
                 }
-
-                Token::FloatLiteral(value as f32)
             },
             '=' => Token::Equals,
             first @ ('A'..='Z' | 'a'..='z' | '_') => {
-                Token::Identifier(iter::once(first).chain(iter.by_ref().take_while(|c| matches!(c, 'A'..='Z' | 'a'..='z' | '_' | '0'..='9'))).collect::<String>())
+                let word = iter::once(first).chain(iter.take_while(|c| matches!(c, 'A'..='Z' | 'a'..='z' | '_' | '0'..='9'))).collect::<String>();
+
+                match word.as_str(){
+                    "if" => Token::If,
+                    "else" => Token::Else,
+                    "let" => Token::Let,
+                    "while" => Token::While,
+                    "for" => Token::For,
+                    _ => Token::Identifier(word)
+                }
             }
-            _ =>{
-                return Err(format!("Unknown token {}", iter.collect::<String>()));
+            c @ _ =>{
+                return Err(format!("Unknown token '{}'", iter::once(c).chain(iter).collect::<String>()));
             }
                 
         };
@@ -68,6 +93,17 @@ pub enum Token{
     Semicolon,
     Equals,
     Dot,
+    Plus,
+    Minus,
+    Asterisk,
+    Slash,
+
+    // Keywords:
+    If,
+    Else,
+    While,
+    Let,
+    For,
 }
 
 #[cfg(test)]
@@ -95,6 +131,42 @@ mod lexer_tests{
                 Token::FloatLiteral(12.543),
                 Token::Dot,
                 Token::Identifier(String::from("d"))
+            ]
+        )
+    }
+    #[test]
+    fn float_literals_negative(){
+        assert_eq!(
+            lex("-1.25- 1.25").unwrap(),
+            vec![
+                Token::FloatLiteral(-1.25),
+                Token::Minus,
+                Token::FloatLiteral(1.25)
+            ]
+        )
+    }
+
+    #[test]
+    fn int_float_differentiation(){
+        assert_eq!(
+            lex("1.25 1.00 -1 125").unwrap(),
+            vec![
+                Token::FloatLiteral(1.25),
+                Token::FloatLiteral(1.0),
+                Token::IntLiteral(-1),
+                Token::IntLiteral(125)
+            ]
+        )
+    }
+    #[test]
+    fn some_keywords(){
+        assert_eq!(
+            lex("else yeet let say").unwrap(),
+            vec![
+                Token::Else,
+                Token::Identifier(String::from("yeet")),
+                Token::Let,
+                Token::Identifier(String::from("say"))
             ]
         )
     }
