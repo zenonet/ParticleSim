@@ -65,10 +65,10 @@ macro_rules! match_tokens {
 mod test{
     use itertools::Itertools;
 
-    use crate::particlescript::{lexer::{Token, TokenType}}
+    use crate::particlescript::{lexer::{Token, TokenType}};
 
     #[test]
-    fn defs(){
+    fn match_tokens(){
         let tokens = [            
             Token{
                 token_type: TokenType::Identifier("ln".to_owned()),
