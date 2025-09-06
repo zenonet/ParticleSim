@@ -43,19 +43,31 @@ where T: Iterator<Item = Token>{
 
     let t = tokens.next().unwrap();
 }
-
+//#![feature(macro_metavar_expr)]
 macro_rules! match_tokens {
     ( $tokens:expr, $( $x:pat_param ),* ) => {
         {
+            //let tokens: itertools::MultiPeek<std::slice::IntoIter<'_, Token>> = $tokens;
             (move ||{
+                let mut cnt = 0;
         $( 
-            let Some(t) = $tokens.peek() else {return false;};
+            let Some(t) = $tokens.peek() else {return None;};
             match t.token_type{
-                $x => {},
-                _ => {return false;}
+                $x => {cnt += 1},
+                _ => {return None;}
             }
         )*
-        return true;
+
+        // Let's collect the tokens
+        let mut res = Vec::<Token>::with_capacity(cnt);
+
+        $(
+            // We gotta use $x somewhere, let's just hope the compiler optimizes this away
+            matches!(TokenType::Semicolon, $x);
+            res.push($tokens.next().unwrap());
+        )*
+        
+        return Some(res);
     })()
     }
     };
@@ -86,15 +98,15 @@ mod test{
                 column: 2
             }
         ];
-        let mut tokens = tokens.iter().multipeek();
+        let mut tokens = tokens.into_iter().multipeek();
 
-        let res:bool = match_tokens!(
+        let res = match_tokens!(
             tokens,
             TokenType::Identifier(_),
             TokenType::OpeningParenthesis,
             TokenType::ClosingParenthesis
         );
 
-        assert!(res)
+        assert!(res.is_some())
     }
 }
