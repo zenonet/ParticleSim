@@ -1,35 +1,16 @@
 use std::rc::Rc;
 
 use crate::particlescript::{lexer::Token, lexer::TokenType::*, types::Type};
-use itertools::Itertools;
+use itertools::{Itertools, MultiPeek};
 
 
 macro_rules! match_tokens {
     ( $tokens:expr, $( $x:pat_param ),* ) => {
-        {
-            //let tokens: itertools::MultiPeek<std::slice::IntoIter<'_, Token>> = $tokens;
-            (move ||{
-                let mut cnt = 0;
+
         $( 
-            let Some(t) = $tokens.peek() else {return None;};
-            match t.token_type{
-                $x => {cnt += 1},
-                _ => {return None;}
-            }
+            let Some(t) = $tokens.peek() else { return false};
+            let $x = t.token_type.clone() else {return false};
         )*
-
-        // Let's collect the tokens
-        let mut res = Vec::<Token>::with_capacity(cnt);
-
-        $(
-            // We gotta use $x somewhere, let's just hope the compiler optimizes this away
-            matches!(TokenType::Semicolon, $x);
-            res.push($tokens.next().unwrap());
-        )*
-        
-        return Some(res);
-    })()
-    }
     };
 }
 
@@ -69,14 +50,9 @@ fn parse<T>(
 where T: Iterator<Item = Token>{
     let mut tokens = tokens.multipeek();
 
-    if let Some(tok) = match_tokens!(tokens,
-        Identifier(name),
-        Equals
-    ){
-        println!("{}", name);
-    }
-}
+    
 
+}
 
 
 #[cfg(test)]
@@ -106,13 +82,19 @@ mod test{
         ];
         let mut tokens = tokens.into_iter().multipeek();
 
-        let res = match_tokens!(
-            tokens,
-            TokenType::Identifier(_),
-            TokenType::OpeningParenthesis,
-            TokenType::ClosingParenthesis
-        );
+        let res = (||{
+            match_tokens!(
+                tokens,
+                TokenType::Identifier(k),
+                TokenType::OpeningParenthesis,
+                TokenType::ClosingParenthesis
+            );
 
-        assert!(res.is_some())
+            assert_eq!(k, String::from("ln"));
+
+            true
+        })();
+
+        assert!(res)
     }
 }
