@@ -1,6 +1,8 @@
+use std::rc::Rc;
+
 #[derive(Debug)]
 pub struct Type{
-    name: String
+    pub name: String
 }
 
 pub fn base_types() -> Vec<Type>{
@@ -14,5 +16,20 @@ pub fn base_types() -> Vec<Type>{
         Type{
             name: "Vec2".to_owned()
         },
+        Type{
+            name: "void".to_owned()
+        }
     ]
+}
+
+#[derive(Debug)]
+pub struct Value{
+    pub typ: Rc<Type>,
+    pub data: ValueData
+}
+
+#[derive(Debug)]
+pub enum ValueData{
+    Int(i32),
+    Float(f32),
 }

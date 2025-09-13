@@ -1,10 +1,18 @@
-use bevy::math::NormedVectorSpace;
+use std::{fs::File, io::{BufReader, Read}};
+
 use bevy::prelude::*;
 use bevy::{app::{App, Startup}, asset::Assets, color::Color, core_pipeline::core_2d::Camera2d, ecs::{component::Component, system::{Commands, Query, ResMut}}, math::{primitives::Circle, Vec2, Vec3}, render::mesh::{Mesh, Mesh2d}, sprite::{ColorMaterial, MeshMaterial2d}, transform::components::Transform, DefaultPlugins};
+use itertools::Itertools;
 use rand::Rng;
 
+use crate::particlescript::{lexer::Lexer, parser};
+
+mod particlescript;
 const TICK_RATE: f32 = 60.0;
 fn main() {
+
+    parse_script();
+
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0))) // background color
@@ -13,6 +21,19 @@ fn main() {
         .add_systems(FixedUpdate, (update_particle_data, update_particles, apply_velocity).chain())
         .run()
         ;
+}
+
+fn parse_script(){
+    let file = File::open("first.pts").expect("Particle script Source file not found");
+    let reader = BufReader::new(file);
+    let mut reader = utf8_read::Reader::new(reader);
+    let mut reader = reader.map(|s| s.expect("Invalid utf8 character in source file"));
+
+    let lexer: Lexer<&mut std::iter::Map<&mut utf8_read::Reader<BufReader<File>>, _>> = Lexer::new(&mut reader);
+
+    let mut lexer = lexer.multipeek();
+    let mut scope = parser::Scope::root();
+    let stmt = parser::parse(&mut lexer, &mut scope);
 }
 
 #[derive(Component, Clone, Copy)]
